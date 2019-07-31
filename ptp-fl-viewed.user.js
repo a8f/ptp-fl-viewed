@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name     PTP FL Viewed
-// @version  0.1
-// @include /https://passthepopcorn\.me/torrents\.php\?action=advanced.*&freetorrent=1.*/
+// @version  0.11
+// @include  /https://passthepopcorn\.me/torrents\.php\?action=advanced.*&freetorrent=1.*/
 // @namespace http://airstrafe.net
 // @grant       GM.setValue
 // @grant       GM.getValue
@@ -11,6 +11,8 @@ let jQuery = $ = unsafeWindow.jQuery;
 
 $('#content').append('<center><button type="button" style="width: 200px;height 30px;margin-top: 12px;" class="catch-up-btn">Catch Up</button></center>');
 $('#torrents-movie-view').prepend('<center><button type="button" style="width: 200px;height 30px;margin-bottom: 12px;" class="catch-up-btn">Catch Up</button></center>');
+$('#userinfo_minor').append('<li class="user-info-bar__item"><a class="user-info-bar__link" href="#" onclick="return false;" id="nav_clear_seen">Clear seen</a></li>');
+document.getElementById('nav_clear_seen').addEventListener('click', clearSavedTorrents);
 
 (async () => {
     let saved = await getSavedMovies();
@@ -27,11 +29,15 @@ $('#torrents-movie-view').prepend('<center><button type="button" style="width: 2
 async function getSavedMovies() {
     let saved = await GM.getValue('saved', '');
     try {
-        saved = cleanOldTorrents(JSON.parse(saved));
+        return cleanOldTorrents(JSON.parse(saved));
     } catch(e) {
         return new Object();
     }
-    return saved;
+}
+
+async function clearSavedTorrents() {
+    await GM.setValue('saved', '');
+    location.reload();
 }
 
 function catchUpPage(saved, pageMovies) {
@@ -60,14 +66,17 @@ function cleanOldTorrents(saved) {
     return saved;
 }
 
-// Hide movies that have only torrents in saved
-// Returns movies on the page and their torrents
+// Hide movies that have only freeleeches which are already saved
+// Returns array of the movies on the page
 function updateMovies(saved) {
     let movies = $('#torrents-movie-view div tbody');
     let hoursLeftRe = /\d+h/;
     let minsLeftRe = /\d+m/;
     let daysLeftRe = /\d+d/;
     let now = (new Date().getTime()).toString();
+    // Expiry date for torrents without any time listed
+    let defaultExpires = new Date();
+    defaultExpires.setDate(defaultExpires.getDate() + 1);
     let pageMovies = {};
     // Iterate over movies
     for (let i = 0; i < movies.length; i++) {
@@ -100,20 +109,24 @@ function updateMovies(saved) {
                 }
             }
             let flText = $(torrent).find('span.torrent-info__download-modifier--free').text();
+            let missingTimestamp = true;
             let minsLeft = flText.match(minsLeftRe);
             let expires = new Date();
             if (minsLeft && minsLeft.length === 0) {
+                missingTimestamp = false;
                 expires.setMinutes(expires.getMinutes() + parseInt(minsLeft[0].substring(0, minsLeft[0].length - 1)));
             }
             let hoursLeft = flText.match(hoursLeftRe);
             if (hoursLeft && hoursLeft.length > 0) {
+                missingTimestamp = false;
                 expires.setHours(expires.getHours() + parseInt(hoursLeft[0].substring(0, hoursLeft[0].length - 1)));  
             }
             let daysLeft = flText.match(daysLeftRe);
             if (daysLeft && daysLeft.length > 0) {
-                expires.setDays(expires.getDays() + parseInt(daysLeft[0].substring(0, daysLeft[0].length - 1)));  
+                missingTimestamp = false;
+                expires.setDate(expires.getDate() + parseInt(daysLeft[0].substring(0, daysLeft[0].length - 1)));  
             }
-            movieTorrents.push({'expires': expires.getTime().toString(), 'id': torrentId});
+            movieTorrents.push({'expires': missingTimestamp ? defaultExpires.getTime().toString() : expires.getTime().toString(), 'id': torrentId});
         }
         pageMovies[movieId] = movieTorrents;
         if (!unseenFl) {
