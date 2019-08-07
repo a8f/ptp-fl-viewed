@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name     PTP FL Viewed
 // @version  0.11
-// @include  /https://passthepopcorn\.me/torrents\.php\?action=advanced.*&freetorrent=1.*/
+// @include  /https://passthepopcorn\.me/torrents\.php\?(page=\d*&)?action=advanced.*&freetorrent=1.*/
 // @namespace http://airstrafe.net
 // @grant       GM.setValue
 // @grant       GM.getValue
@@ -16,11 +16,14 @@ document.getElementById('nav_clear_seen').addEventListener('click', clearSavedTo
 
 (async () => {
     let saved = await getSavedMovies();
-    let pageMovies = updateMovies(saved);
+    let movies = updateMovies(saved);
+    if (movies['seenAll']) {
+        window.location.href = $('.pagination__link--next').attr('href');
+    }
     let buttons = document.getElementsByClassName('catch-up-btn');
     for (let i = 0; i < buttons.length; i++) {
         buttons[i].addEventListener('click', function() {
-            catchUpPage(saved, pageMovies);
+            catchUpPage(saved, movies['page']);
         });
     }
 })();
@@ -67,7 +70,9 @@ function cleanOldTorrents(saved) {
 }
 
 // Hide movies that have only freeleeches which are already saved
-// Returns array of the movies on the page
+// Returns dict with key:values of:
+// 'page': array of the movies on the page
+// 'seenAll': true if there are no visible movies on the page
 function updateMovies(saved) {
     let movies = $('#torrents-movie-view div tbody');
     let hoursLeftRe = /\d+h/;
@@ -78,6 +83,7 @@ function updateMovies(saved) {
     let defaultExpires = new Date();
     defaultExpires.setDate(defaultExpires.getDate() + 1);
     let pageMovies = {};
+    let seenAll = true;
     // Iterate over movies
     for (let i = 0; i < movies.length; i++) {
         let torrents = $(movies[i]).children();
@@ -129,9 +135,11 @@ function updateMovies(saved) {
             movieTorrents.push({'expires': missingTimestamp ? defaultExpires.getTime().toString() : expires.getTime().toString(), 'id': torrentId});
         }
         pageMovies[movieId] = movieTorrents;
-        if (!unseenFl) {
+        if (unseenFl) {
+            seenAll = false;
+        } else {
             $(movies[i]).hide();
         }
     }
-    return pageMovies;
+    return {'page': pageMovies, 'seenAll': seenAll};
 }
