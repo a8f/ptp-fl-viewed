@@ -1,6 +1,7 @@
 // ==UserScript==
 // @name     PTP FL Viewed
-// @version  0.11
+// @version  0.2
+// @downloadURL https://github.com/git-uname/ptp-fl-viewed/raw/master/ptp-fl-viewed.user.js
 // @include  /https://passthepopcorn\.me/torrents\.php\?(page=\d*&)?action=advanced.*&freetorrent=1.*/
 // @namespace http://airstrafe.net
 // @grant       GM.setValue
@@ -18,7 +19,9 @@ document.getElementById('nav_clear_seen').addEventListener('click', clearSavedTo
     let saved = await getSavedMovies();
     let movies = updateMovies(saved);
     if (movies['seenAll']) {
-        window.location.href = $('.pagination__link--next').attr('href');
+        let url = $('.pagination__link--next').attr('href');
+        if (url != undefined)
+            window.location.href = $('.pagination__link--next').attr('href');
     }
     let buttons = document.getElementsByClassName('catch-up-btn');
     for (let i = 0; i < buttons.length; i++) {
